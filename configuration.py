@@ -50,11 +50,13 @@ class NotaryConfiguration(object):
             return self.config.get('DEFAULT', 'block_cypher_token')
         else:
             raise ValueError('Value does not exist!')
+
     def get_test_mode(self):
         if self.config.has_option('DEFAULT', 'test_mode'):
             return self.config.getboolean('DEFAULT', 'test_mode')
         else:
             raise ValueError('Value does not exist!')
+
     def get_ssl_verify_mode(self):
         if self.config.has_option('DEFAULT', 'verify_ssl'):
             return self.config.getboolean('DEFAULT', 'verify_ssl')
