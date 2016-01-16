@@ -1,5 +1,4 @@
 import bitcoin_asymmetric_encrypt
-from wallet import NotaryWallet
 from bitcoinlib.signmessage import VerifyMessage, BitcoinMessage
 from bitcoinlib.core.key import CPubKey
 

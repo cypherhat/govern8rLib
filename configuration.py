@@ -105,3 +105,9 @@ class NotaryConfiguration(object):
             return self.config.getboolean('DEFAULT', 'verify_ssl')
         else:
             raise ValueError('Value does not exist!')
+
+    def get_key_id(self):
+        if self.config.has_option('DEFAULT', 'key_id'):
+            return self.config.get('DEFAULT', 'key_id')
+        else:
+            raise ValueError('Value does not exist!')
