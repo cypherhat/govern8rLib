@@ -2,7 +2,7 @@ from setuptools import setup
 
 setup(
         name='govern8rLib',
-        version='0.0.3',
+        version='0.0.4',
         packages=[''],
         url='https://github.com/cypherhat/govern8r/govern8rLib',
         license='',
