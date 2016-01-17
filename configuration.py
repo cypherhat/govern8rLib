@@ -31,7 +31,9 @@ class NotaryConfiguration(object):
         local_hosts = self.get_local_hosts()
         for local_host in local_hosts:
             if self.host in local_host or local_host in self.host:
+                print("Local host: %s " % self.host)
                 return True
+        print("Remote host: %s " % self.host)
         return False
 
     def get_local_hosts(self):
@@ -109,5 +111,11 @@ class NotaryConfiguration(object):
     def get_key_id(self):
         if self.config.has_option('DEFAULT', 'key_id'):
             return self.config.get('DEFAULT', 'key_id')
+        else:
+            raise ValueError('Value does not exist!')
+
+    def get_wallet_type(self):
+        if self.config.has_option('DEFAULT', 'wallet_type'):
+            return self.config.get('DEFAULT', 'wallet_type')
         else:
             raise ValueError('Value does not exist!')
