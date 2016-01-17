@@ -85,7 +85,7 @@ class ServerWallet(PlainWallet):
     def __init__(self, key_id):
         super(PlainWallet, self).__init__()
         try:
-            self.kms = boto3.client('kms')
+            self.kms = boto3.client('kms', region_name='us-east-1')
         except botocore.exceptions.ClientError as e:
             self.kms = None
             print(e)
