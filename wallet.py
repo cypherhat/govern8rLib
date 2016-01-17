@@ -88,21 +88,22 @@ class ServerWallet(PlainWallet):
             self.kms = boto3.client('kms', region_name='us-east-1')
         except botocore.exceptions.ClientError as e:
             self.kms = None
-            print(e)
+            print("Wallet cannot be created due to %s " % e.message)
 
         self.key_id = key_id
-        if not self.wallet_exists():
-            self.create_new_wallet()
-        self.private_key_hex = self.read_private_key()
-        self.private_key_wif = base58.base58_check_encode(0x80, self.private_key_hex.decode("hex"))
-        self.private_key = CBitcoinSecret(self.private_key_wif)
+        try:
+            if not self.wallet_exists():
+                self.create_new_wallet()
+            self.private_key_hex = self.read_private_key()
+            self.private_key_wif = base58.base58_check_encode(0x80, self.private_key_hex.decode("hex"))
+            self.private_key = CBitcoinSecret(self.private_key_wif)
+        except ValueError as e:
+            print("Wallet cannot be created due to %s " % e.message)
 
     def create_new_wallet(self):
-        if self.wallet_exists():
-            raise ValueError('Wallet already exists!')
         # Create private key
         if self.kms is None:
-            super(ServerWallet, self).create_new_wallet()
+            raise ValueError('Key Management Service failed!')
         else:
             private_key = os.urandom(32)
             private_hex = private_key.encode("hex")
@@ -120,7 +121,7 @@ class ServerWallet(PlainWallet):
             config.read(file_name)
             if config.has_option(section_name, 'private_key'):
                 if self.kms is None:
-                    return super(ServerWallet, self).read_private_key()
+                    raise ValueError('Key Management Service failed!')
                 else:
                     encrypted_hex = config.get (section_name, 'private_key')
                     private_hex = self.decrypt_from_hex(encrypted_hex)
@@ -132,26 +133,31 @@ class ServerWallet(PlainWallet):
 
     def encrypt_to_hex(self, plaintext):
         encryption_context = {}
-
+        encrypted_hex = None
         try:
             token = self.kms.encrypt(KeyId=self.key_id, Plaintext=plaintext, EncryptionContext=encryption_context)
+            ciphertext = token['CiphertextBlob']
+            encrypted_hex = ciphertext.encode('hex')
         except botocore.exceptions.ClientError as e:
             print(e)
 
-        ciphertext = token['CiphertextBlob']
-        hex = ciphertext.encode('hex')
-        return hex
+        if encrypted_hex is None:
+            raise ValueError('Wallet does not exist!')
+        return encrypted_hex
 
     def decrypt_from_hex(self, ciphertext):
         encryption_context = {}
         encoded_ciphertext = ciphertext.decode('hex')
-
+        plaintext = None
         try:
             decrypted_token = self.kms.decrypt(CiphertextBlob=encoded_ciphertext, EncryptionContext=encryption_context)
+            plaintext = decrypted_token['Plaintext']
         except botocore.exceptions.ClientError as e:
             print(e)
 
-        plaintext = decrypted_token['Plaintext']
+        if plaintext is None:
+            raise ValueError('Wallet does not exist!')
+
         return plaintext
 
 
@@ -159,11 +165,14 @@ class ClientWallet(PlainWallet):
     def __init__(self, password):
         super(PlainWallet, self).__init__()
         self.password = password
-        if not self.wallet_exists():
-            self.create_new_wallet()
-        self.private_key_hex = self.read_private_key()
-        self.private_key_wif = base58.base58_check_encode(0x80, self.private_key_hex.decode("hex"))
-        self.private_key = CBitcoinSecret(self.private_key_wif)
+        try:
+            if not self.wallet_exists():
+                self.create_new_wallet()
+            self.private_key_hex = self.read_private_key()
+            self.private_key_wif = base58.base58_check_encode(0x80, self.private_key_hex.decode("hex"))
+            self.private_key = CBitcoinSecret(self.private_key_wif)
+        except ValueError as e:
+            print("Wallet cannot be created due to %s " % e.message)
 
     def create_new_wallet(self):
         if self.wallet_exists():
@@ -202,3 +211,12 @@ class ClientWallet(PlainWallet):
                     raise ValueError('Private key does not exist!')
         else:
             raise ValueError('Wallet does not exist!')
+
+
+def create_wallet(wallet_type, key):
+    if wallet_type == 'ServerWallet':
+        return ServerWallet(key)
+    elif wallet_type == 'ClientWallet':
+        return ClientWallet(key)
+    else:
+        return PlainWallet()
