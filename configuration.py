@@ -30,7 +30,7 @@ class NotaryConfiguration(object):
     def is_local_host(self):
         local_hosts = self.get_local_hosts()
         for local_host in local_hosts:
-            if self.host in local_host or local_host in self.host:
+            if self.host is local_host:
                 print("Local host: %s " % self.host)
                 return True
         print("Remote host: %s " % self.host)
@@ -83,6 +83,12 @@ class NotaryConfiguration(object):
             return self.get_local_db_url()
         else:
             return self.get_remote_db_url()
+
+    def get_aws_region(self):
+        if self.config.has_option('DEFAULT', 'region_name'):
+            return self.config.get('DEFAULT', 'region_name')
+        else:
+            raise ValueError('Value does not exist!')
 
     def get_block_cypher_token(self):
         if self.config.has_option('DEFAULT', 'block_cypher_token'):
