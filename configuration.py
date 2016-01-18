@@ -84,6 +84,12 @@ class NotaryConfiguration(object):
         else:
             return self.get_remote_db_url()
 
+    def get_aws_region(self):
+        if self.config.has_option('DEFAULT', 'region_name'):
+            return self.config.get('DEFAULT', 'region_name')
+        else:
+            raise ValueError('Value does not exist!')
+
     def get_block_cypher_token(self):
         if self.config.has_option('DEFAULT', 'block_cypher_token'):
             return self.config.get('DEFAULT', 'block_cypher_token')
