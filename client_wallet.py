@@ -37,10 +37,10 @@ class ClientWallet(PlainWallet):
             with open(self.file_name, 'w') as configfile:
                 config.write(configfile)
 
-            wallet_file = open(file_name, 'r')
+            wallet_file = open(self.file_name, 'r')
             plain_text = wallet_file.read()
 
-            fileencrypt.write_encrypted(self.password, file_name, plain_text)
+            fileencrypt.write_encrypted(self.password, self.file_name, plain_text)
 
     def read_private_key(self):
         if self.wallet_exists():
