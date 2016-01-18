@@ -1,5 +1,4 @@
-import boto3
-import botocore
+
 import configparser
 import os
 from bitcoinlib.wallet import CBitcoinSecret, P2PKHBitcoinAddress
@@ -83,7 +82,9 @@ class PlainWallet(object):
 
 class ServerWallet(PlainWallet):
     def __init__(self, key_id):
+
         super(PlainWallet, self).__init__()
+        import boto3,botocore
         try:
             self.kms = boto3.client('kms', region_name='us-east-1')
         except botocore.exceptions.ClientError as e:
@@ -132,6 +133,7 @@ class ServerWallet(PlainWallet):
             raise ValueError('Wallet does not exist!')
 
     def encrypt_to_hex(self, plaintext):
+        import botocore
         encryption_context = {}
         encrypted_hex = None
         try:
@@ -146,6 +148,7 @@ class ServerWallet(PlainWallet):
         return encrypted_hex
 
     def decrypt_from_hex(self, ciphertext):
+        import botocore
         encryption_context = {}
         encoded_ciphertext = ciphertext.decode('hex')
         plaintext = None
