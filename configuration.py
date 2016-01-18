@@ -30,7 +30,7 @@ class NotaryConfiguration(object):
     def is_local_host(self):
         local_hosts = self.get_local_hosts()
         for local_host in local_hosts:
-            if self.host is local_host
+            if self.host is local_host:
                 print("Local host: %s " % self.host)
                 return True
         print("Remote host: %s " % self.host)
