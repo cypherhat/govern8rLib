@@ -9,38 +9,32 @@ import botocore
 
 class ServerWallet(PlainWallet):
     def __init__(self, key_id):
-
-        super(PlainWallet, self).__init__()
-        try:
-            self.kms = boto3.client('kms', region_name='us-east-1')
-        except botocore.exceptions.ClientError as e:
-            self.kms = None
-            print("Wallet cannot be created due to %s " % e.message)
-
+        super(ServerWallet, self).__init__()
         self.key_id = key_id
-        try:
-            if not self.wallet_exists():
+        self.kms = None
+
+    def instance(self):
+        if not self.wallet_exists():
+            try:
+                self.kms = boto3.client('kms', region_name='us-east-1')
                 self.create_new_wallet()
-            self.private_key_hex = self.read_private_key()
-            self.private_key_wif = base58.base58_check_encode(0x80, self.private_key_hex.decode("hex"))
-            self.private_key = CBitcoinSecret(self.private_key_wif)
-        except ValueError as e:
-            print("Wallet cannot be created due to %s " % e.message)
+                self.private_key_hex = self.read_private_key()
+                self.private_key_wif = base58.base58_check_encode(0x80, self.private_key_hex.decode("hex"))
+                self.private_key = CBitcoinSecret(self.private_key_wif)
+            except botocore.exceptions.ClientError as e:
+                print("Error contacting KMS %s " % e.message)
 
     def create_new_wallet(self):
         # Create private key
-        if self.kms is None:
-            raise ValueError('Key Management Service failed!')
-        else:
-            private_key = os.urandom(32)
-            private_hex = private_key.encode("hex")
-            encrypted_hex = self.encrypt_to_hex(private_hex)
-            config = configparser.ConfigParser()
-            config.add_section(self.section_name)
-            config.set(self.section_name, 'private_key',  encrypted_hex)
+        temp_private_key = os.urandom(32)
+        temp_private_hex = temp_private_key.encode("hex")
+        temp_encrypted_hex = self.encrypt_to_hex(temp_private_hex)
+        config = configparser.ConfigParser()
+        config.add_section(self.section_name)
+        config.set(self.section_name, 'private_key',  temp_encrypted_hex)
 
-            with open(self.file_name, 'w') as configfile:
-                config.write(configfile)
+        with open(self.file_name, 'w') as configfile:
+            config.write(configfile)
 
     def read_private_key(self):
         if self.wallet_exists():

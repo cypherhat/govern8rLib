@@ -5,8 +5,10 @@ from plain_wallet import PlainWallet
 
 def create_wallet(wallet_type, key):
     if wallet_type == 'ServerWallet':
-        return ServerWallet(key)
+        wallet = ServerWallet(key)
     elif wallet_type == 'ClientWallet':
-        return ClientWallet(key)
+        wallet = ClientWallet(key)
     else:
-        return PlainWallet()
+        wallet = PlainWallet()
+    wallet.instance()
+    return wallet
