@@ -12,11 +12,9 @@ class PlainWallet(object):
     def __init__(self):
         self.file_name = 'notarywallet.data'
         self.section_name = 'NotaryWallet'
-        if not self.wallet_exists():
-            self.create_new_wallet()
-        self.private_key_hex = self.read_private_key()
-        self.private_key_wif = base58.base58_check_encode(0x80, self.private_key_hex.decode("hex"))
-        self.private_key = CBitcoinSecret(self.private_key_wif)
+        self.private_key_hex = None
+        self.private_key_wif = None
+        self.private_key = None
 
     def sign(self, message):
         bitcoin_message = BitcoinMessage(message)
@@ -48,20 +46,23 @@ class PlainWallet(object):
         else:
             return False
 
+    def instance(self):
+        if not self.wallet_exists():
+            self.create_new_wallet()
+            self.private_key_hex = self.read_private_key()
+            self.private_key_wif = base58.base58_check_encode(0x80, self.private_key_hex.decode("hex"))
+            self.private_key = CBitcoinSecret(self.private_key_wif)
+
     def create_new_wallet(self):
-        print ("Defaulting to PlainWallet")
-        if self.wallet_exists():
-            raise ValueError('Wallet already exists!')
-        # Create private key
-        private_key = os.urandom(32)
-        private_hex = private_key.encode("hex")
+            private_key = os.urandom(32)
+            private_hex = private_key.encode("hex")
 
-        config = configparser.ConfigParser()
-        config.add_section(self.section_name)
-        config.set(self.section_name, 'private_key',  private_hex)
+            config = configparser.ConfigParser()
+            config.add_section(self.section_name)
+            config.set(self.section_name, 'private_key',  private_hex)
 
-        with open(self.file_name, 'w') as configfile:
-            config.write(configfile)
+            with open(self.file_name, 'w') as configfile:
+                config.write(configfile)
 
     def read_private_key(self):
         if self.wallet_exists():
