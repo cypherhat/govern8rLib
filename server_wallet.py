@@ -14,15 +14,15 @@ class ServerWallet(PlainWallet):
         self.kms = None
 
     def instance(self):
+        try:
+            self.kms = boto3.client('kms', region_name='us-east-1')
+        except botocore.exceptions.ClientError as e:
+            print("Error contacting KMS %s " % e.message)
         if not self.wallet_exists():
-            try:
-                self.kms = boto3.client('kms', region_name='us-east-1')
-                self.create_new_wallet()
-                self.private_key_hex = self.read_private_key()
-                self.private_key_wif = base58.base58_check_encode(0x80, self.private_key_hex.decode("hex"))
-                self.private_key = CBitcoinSecret(self.private_key_wif)
-            except botocore.exceptions.ClientError as e:
-                print("Error contacting KMS %s " % e.message)
+            self.create_new_wallet()
+        self.private_key_hex = self.read_private_key()
+        self.private_key_wif = base58.base58_check_encode(0x80, self.private_key_hex.decode("hex"))
+        self.private_key = CBitcoinSecret(self.private_key_wif)
 
     def create_new_wallet(self):
         # Create private key
