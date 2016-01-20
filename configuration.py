@@ -38,7 +38,7 @@ class NotaryConfiguration(object):
 
     def get_local_hosts(self):
         if self.config.has_option('DEFAULT', 'local_hosts'):
-            return self.config.get('DEFAULT', 'local_hosts')
+            return str(self.config.get('DEFAULT', 'local_hosts'))
         else:
             raise ValueError('Value does not exist!')
 
