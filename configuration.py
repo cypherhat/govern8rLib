@@ -28,7 +28,7 @@ class NotaryConfiguration(object):
             return config
 
     def is_local_host(self):
-        local_hosts = self.get_local_hosts()
+        local_hosts = self.get_local_hosts().split(",")
         for local_host in local_hosts:
             if self.host is local_host:
                 print("Local host: %s " % self.host)
