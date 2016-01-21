@@ -49,9 +49,9 @@ class PlainWallet(object):
     def instance(self):
         if not self.wallet_exists():
             self.create_new_wallet()
-            self.private_key_hex = self.read_private_key()
-            self.private_key_wif = base58.base58_check_encode(0x80, self.private_key_hex.decode("hex"))
-            self.private_key = CBitcoinSecret(self.private_key_wif)
+        self.private_key_hex = self.read_private_key()
+        self.private_key_wif = base58.base58_check_encode(0x80, self.private_key_hex.decode("hex"))
+        self.private_key = CBitcoinSecret(self.private_key_wif)
 
     def create_new_wallet(self):
             private_key = os.urandom(32)
