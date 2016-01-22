@@ -1,6 +1,7 @@
 import configparser
 import os
 import socket
+import logging
 
 
 class NotaryConfiguration(object):
@@ -9,7 +10,6 @@ class NotaryConfiguration(object):
 
     def __init__(self, file_name):
         self.host = socket.gethostname()
-        print ("Host: %s" % self.host)
         self.file_name = file_name
         if not self.config_exists():
             raise ValueError('Configuration does not exist!')
@@ -31,9 +31,7 @@ class NotaryConfiguration(object):
         local_hosts = self.get_local_hosts().split(",")
         for local_host in local_hosts:
             if self.host.strip() == local_host.strip():
-                print("Local host: %s " % self.host)
                 return True
-        print("Remote host: %s " % self.host)
         return False
 
     def get_local_hosts(self):
@@ -45,6 +43,24 @@ class NotaryConfiguration(object):
     def get_block_cypher_url(self):
         if self.config.has_option('DEFAULT', 'block_cypher_url'):
             return str(self.config.get('DEFAULT', 'block_cypher_url'))
+        else:
+            raise ValueError('Value does not exist!')
+
+    def get_sender_email(self):
+        if self.config.has_option('DEFAULT', 'sender_email'):
+            return str(self.config.get('DEFAULT', 'sender_email'))
+        else:
+            raise ValueError('Value does not exist!')
+
+    def get_recipient_emails(self):
+        if self.config.has_option('DEFAULT', 'recipient_emails'):
+            return str(self.config.get('DEFAULT', 'recipient_emails')).split(",")
+        else:
+            raise ValueError('Value does not exist!')
+
+    def get_debug_log(self):
+        if self.config.has_option('DEFAULT', 'debug_log'):
+            return str(self.config.get('DEFAULT', 'debug_log'))
         else:
             raise ValueError('Value does not exist!')
 
@@ -101,6 +117,26 @@ class NotaryConfiguration(object):
             return self.config.getboolean('DEFAULT', 'remote_testing')
         else:
             return True
+
+    def get_log_level(self):
+        if self.config.has_option('DEFAULT', 'logging_level'):
+            logging_level = str(self.config.get('DEFAULT', 'logging_level'))
+            if logging_level == 'CRITICAL':
+                return logging.CRITICAL
+            elif logging_level == 'ERROR':
+                return logging.ERROR
+            elif logging_level == 'WARN':
+                return logging.WARNING
+            elif logging_level == 'WARNING':
+                return logging.WARNING
+            elif logging_level == 'INFO':
+                return logging.INFO
+            elif logging_level == 'DEBUG':
+                return logging.DEBUG
+            else:
+                return logging.NOTSET
+        else:
+            return logging.NOTSET
 
     def get_coin_network(self):
         if self.config.has_option('DEFAULT', 'coin_network'):
