@@ -92,10 +92,14 @@ class ServerWallet(PlainWallet):
             self.logger.exception("Problem accessing wallet table %s " % e.response)
         return False
 
-    def create_wallet(self):
+    def generate_encrypted_private_key(self):
         private_key = os.urandom(32)
         private_hex = private_key.encode("hex")
         encrypted_hex = self.encrypt_to_hex(private_hex)
+        return encrypted_hex
+
+    def create_wallet(self):
+        encrypted_hex = self.generate_encrypted_private_key()
         return self.create_key(encrypted_hex)
 
     def create_new_wallet(self):
