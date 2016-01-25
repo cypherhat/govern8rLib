@@ -76,3 +76,14 @@ class PlainWallet(object):
         else:
             raise ValueError('Wallet does not exist!')
 
+    def generate_encrypted_private_key(self):
+        private_key = os.urandom(32)
+        private_hex = private_key.encode("hex")
+        encrypted_hex = self.encrypt_to_hex(private_hex)
+        return encrypted_hex
+
+    def encrypt_to_hex(self, plaintext):
+        return plaintext
+
+    def decrypt_from_hex(self, ciphertext):
+        return ciphertext

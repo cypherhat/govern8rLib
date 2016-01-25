@@ -3,9 +3,9 @@ from client_wallet import ClientWallet
 from plain_wallet import PlainWallet
 
 
-def create_wallet(wallet_type, key):
+def create_wallet(wallet_type, key, logger):
     if wallet_type == 'ServerWallet':
-        wallet = ServerWallet(key)
+        wallet = ServerWallet(key, logger)
     elif wallet_type == 'ClientWallet':
         wallet = ClientWallet(key)
     else:
