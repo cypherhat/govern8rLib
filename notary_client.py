@@ -43,14 +43,28 @@ class Notary(object):
         self.cookies = None
 
     def check_wallet(self):
+        '''
+            It is a PRIVATE method to make sure wallet is there and loaded into the notary object already to do the things you want to do.
+        :return:
+        '''
         if wallet is None:
             self.logger.exception("Calling API without loading wallet.")
             raise ValueError('Client Wallet does not exist!')
 
     def create_wallet(self, password):
+        '''
+           Basically this method creates a wallet file locally on your disk.
+        :param password:
+        :return:
+        '''
         self.wallet = wallet.create_wallet(self.config.get_wallet_type(), password, self.logger)
 
     def load_wallet(self, password):
+        '''
+         loading wallet should be done before using any of the API calls. if you do , it will raise exception.
+        :param password:
+        :return:
+        '''
         self.wallet = wallet.load_wallet(self.config.get_wallet_type(), password, self.logger)
 
     def register_user(self, email):
@@ -88,6 +102,7 @@ class Notary(object):
     def rotate_the_cookie(self, response):
         '''
            utility to rotate the cookie.
+           It is a PRIVATE method. don't use it as a API call.
         Parameters
         ----------
         response
@@ -265,6 +280,25 @@ class Notary(object):
         # self.govenr8r_token = cookies['govern8r_token']
         print response.status_code
         return response.status_code
+
+    def download_file(self, document_hash, storing_file_name):
+        self.check_wallet()
+        address = str(self.wallet.get_bitcoin_address())
+        response = requests.get(
+            self.notary_url + '/api/v1/account/' + address + '/document/' + document_hash + '/status',
+            cookies=self.cookies, verify=False)
+        self.rotate_the_cookie(response)
+        if response.content is not None:
+            if response.status_code == 404:
+                print ("Document not found!")
+            elif response.status_code == 200:
+                try:
+                    files = {'document_content': open(storing_file_name, 'rb')}
+                    r = requests.put(self.notary_url + '/api/v1/account/' + address + '/document/' + document_hash,
+                                     cookies=self.cookies, files=files, verify=False)
+                    print r.status_code
+                except requests.ConnectionError as e:
+                    print(e.message)
 
     def notary_status(self, document_hash):
         '''
