@@ -24,9 +24,9 @@ class Notary(object):
 
         self.config = NotaryConfiguration(config_file)
         self.ssl_verify_mode = self.config.get_ssl_verify_mode()
-        logger = log_handlers.get_logger(self.config)
-        logger.debug("-------------------------ENVIRONMENT--------------------------")
-        logger.debug("Am I Local: %s " % self.config.is_local_host())
+        self.logger = log_handlers.get_logger(self.config)
+        self.logger.debug("-------------------------ENVIRONMENT--------------------------")
+        self.logger.debug("Am I Local: %s " % self.config.is_local_host())
 
         requests.packages.urllib3.disable_warnings()
         self.notary_url = self.config.get_server_url()
