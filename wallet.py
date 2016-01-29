@@ -21,4 +21,5 @@ def load_wallet(wallet_type, key, logger):
         wallet = ClientWallet(key)
     else:
         wallet = PlainWallet()
+    wallet.instance()
     return wallet
