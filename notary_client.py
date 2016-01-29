@@ -29,7 +29,10 @@ class Notary(object):
         self.logger.debug("Am I Local: %s " % self.config.is_local_host())
 
         requests.packages.urllib3.disable_warnings()
-        self.notary_url = self.config.get_server_url()
+        if self.config.is_remote_testing():
+            self.notary_url = self.config.get_remote_server_url()
+        else:
+            self.notary_url = self.config.get_local_server_url()
         self.wallet = None
 
         self.secure_message = SecureMessage(self.wallet)
