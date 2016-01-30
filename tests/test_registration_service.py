@@ -19,7 +19,7 @@ logger = log_handlers.get_logger(config)
 logger.debug("-------------------------ENVIRONMENT--------------------------")
 logger.debug("Am I Local: %s " % config.is_local_host())
 
-wallet = wallet.create_wallet(config.get_wallet_type(), config.get_key_id(),logger)
+wallet = wallet.create_wallet(config.get_wallet_type(), config.get_key_id(), logger)
 secure_message = SecureMessage(wallet)
 
 ## Test GET pubkey
@@ -35,7 +35,7 @@ print("\nWallet Public Key Hex %s" % wallet.get_public_key_hex())
 print("\nWallet Public Key %s" % wallet.get_public_key())
 addrfromhex = P2PKHBitcoinAddress.from_pubkey(wallet.get_public_key_hex().decode("hex"))
 print("\nAddress From Hex %s" % addrfromhex)
-email = 'raju_mariappan@troweprice.com'
+email = 'jeff_ploughman@troweprice.com'
 
 registration_message = {'public_key': wallet.get_public_key_hex(), 'email': email}
 

@@ -5,9 +5,9 @@ import requests
 
 requests.packages.urllib3.disable_warnings()
 
-file_name = "/Users/raju/Downloads/jdk-8u65-macosx-x64.dmg"
-encrypted_file = "/Users/raju/Downloads/encrypt_jdk-8u65-macosx-x64.dmg"
-decrypted_file = "/Users/raju/Downloads/decrypt-8u65-macosx-x64.dmg"
+file_name = "/Users/tssbi08/Downloads/jdk-8u65-macosx-x64.dmg"
+encrypted_file = "/Users/tssbi08/Downloads/encrypt_jdk-8u65-macosx-x64.dmg"
+decrypted_file = "/Users/tssbi08/Downloads/decrypt-8u65-macosx-x64.dmg"
 
 wallet = wallet.PlainWallet()
 public_key = CPubKey(wallet.get_public_key_hex().decode("hex"))
