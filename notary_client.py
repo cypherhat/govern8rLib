@@ -24,15 +24,18 @@ class Notary(object):
 
         self.config = NotaryConfiguration(config_file)
         self.ssl_verify_mode = self.config.get_ssl_verify_mode()
-        logger = log_handlers.get_logger(self.config)
-        logger.debug("-------------------------ENVIRONMENT--------------------------")
-        logger.debug("Am I Local: %s " % self.config.is_local_host())
+        self.logger = log_handlers.get_logger(self.config)
+        self.logger.debug("-------------------------ENVIRONMENT--------------------------")
+        self.logger.debug("Am I Local: %s " % self.config.is_local_host())
 
         requests.packages.urllib3.disable_warnings()
-        self.notary_url = self.config.get_server_url()
-        self.wallet = None
+        if self.config.is_remote_testing():
+            self.notary_url = self.config.get_remote_server_url()
+        else:
+            self.notary_url = self.config.get_local_server_url()
+        self.wallet_obj = None
 
-        self.secure_message = SecureMessage(self.wallet)
+        self.secure_message = None
         response = requests.get(self.notary_url + '/api/v1/pubkey', verify=self.ssl_verify_mode)
         data = response.json()
         self.other_party_public_key_hex = data['public_key']
@@ -47,7 +50,7 @@ class Notary(object):
             It is a PRIVATE method to make sure wallet is there and loaded into the notary object already to do the things you want to do.
         :return:
         '''
-        if wallet is None:
+        if self.wallet_obj is None:
             self.logger.exception("Calling API without loading wallet.")
             raise ValueError('Client Wallet does not exist!')
 
@@ -57,7 +60,7 @@ class Notary(object):
         :param password:
         :return:
         '''
-        self.wallet = wallet.create_wallet(self.config.get_wallet_type(), password, self.logger)
+        self.wallet_obj = wallet.create_wallet(self.config.get_wallet_type(), password, self.logger)
 
     def load_wallet(self, password):
         '''
@@ -65,7 +68,8 @@ class Notary(object):
         :param password:
         :return:
         '''
-        self.wallet = wallet.load_wallet(self.config.get_wallet_type(), password, self.logger)
+        self.wallet_obj = wallet.load_wallet(self.config.get_wallet_type(), password, self.logger)
+        self.secure_message = SecureMessage(self.wallet_obj)
 
     def register_user(self, email):
         '''
@@ -82,8 +86,8 @@ class Notary(object):
         # make sure wallet object is there.
         self.check_wallet()
 
-        address = str(self.wallet.get_bitcoin_address())
-        message = {'public_key': self.wallet.get_public_key_hex(), 'email': email}
+        address = str(self.wallet_obj.get_bitcoin_address())
+        message = {'public_key': self.wallet_obj.get_public_key_hex(), 'email': email}
         str_message = json.dumps(message)
         payload = self.secure_message.create_secure_payload(self.other_party_public_key_hex, str_message)
 
@@ -141,7 +145,7 @@ class Notary(object):
         self.check_wallet()
         # call the server to get the challenge URL.
         self.govenr8r_token = 'UNAUTHENTICATED'
-        address = str(self.wallet.get_bitcoin_address())
+        address = str(self.wallet_obj.get_bitcoin_address())
         response = requests.get(self.notary_url + '/api/v1/challenge/' + address, verify=self.ssl_verify_mode)
 
         # process the response
@@ -218,7 +222,7 @@ class Notary(object):
         '''
         # make sure wallet object is there.
         self.check_wallet()
-        address = str(self.wallet.get_bitcoin_address())
+        address = str(self.wallet_obj.get_bitcoin_address())
         meta_data = json.loads(metadata_file.read())
 
         # hash the file and generate the document hash
@@ -263,7 +267,7 @@ class Notary(object):
         '''
         # make sure wallet object is there.
         self.check_wallet()
-        address = str(self.wallet.get_bitcoin_address())
+        address = str(self.wallet_obj.get_bitcoin_address())
         files = {'files': path_to_file}
         print repr(path_to_file.name)
         print repr(self.notary_url + '/api/v1/upload/' + address + '/name/' + path_to_file.name)
@@ -283,7 +287,7 @@ class Notary(object):
 
     def download_file(self, document_hash, storing_file_name):
         self.check_wallet()
-        address = str(self.wallet.get_bitcoin_address())
+        address = str(self.wallet_obj.get_bitcoin_address())
         response = requests.get(
             self.notary_url + '/api/v1/account/' + address + '/document/' + document_hash + '/status',
             cookies=self.cookies, verify=False)
@@ -313,7 +317,7 @@ class Notary(object):
         '''
         # make sure wallet object is there.
         self.check_wallet()
-        address = str(self.wallet.get_bitcoin_address())
+        address = str(self.wallet_obj.get_bitcoin_address())
         response = requests.get(
                 self.notary_url + '/api/v1/account/' + address + '/notarization/' + document_hash + '/status',
                 cookies=self.cookies, verify=self.ssl_verify_mode)

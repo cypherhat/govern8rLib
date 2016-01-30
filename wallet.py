@@ -13,6 +13,7 @@ def create_wallet(wallet_type, key, logger):
     wallet.instance()
     return wallet
 
+
 def load_wallet(wallet_type, key, logger):
     if wallet_type == 'ServerWallet':
         wallet = ServerWallet(key, logger)
@@ -20,4 +21,5 @@ def load_wallet(wallet_type, key, logger):
         wallet = ClientWallet(key)
     else:
         wallet = PlainWallet()
+    wallet.instance()
     return wallet
