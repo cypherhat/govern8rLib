@@ -9,8 +9,45 @@ from configuration import NotaryConfiguration
 import log_handlers
 
 
+class NotaryServer(object):
+    def __init__(self, config):
+        self.config = config
+        requests.packages.urllib3.disable_warnings()
+        self.notary_url = self.get_notary_url()
+        response = requests.get(self.notary_url + '/api/v1/pubkey', verify=self.config.get_ssl_verify_mode())
+        data = response.json()
+        self.other_party_public_key_hex = data['public_key']
+        other_party_public_key_decoded = self.other_party_public_key_hex.decode("hex")
+        self.other_party_public_key = CPubKey(other_party_public_key_decoded)
+        self.other_party_address = P2PKHBitcoinAddress.from_pubkey(self.other_party_public_key)
+
+    def get_address(self):
+        return self.other_party_address
+
+    def get_public_key_hex(self):
+        return self.other_party_public_key_hex
+
+    def get_notary_url(self):
+        if self.config.is_remote_testing():
+            return self.config.get_remote_server_url()
+        else:
+            return self.config.get_local_server_url()
+
+    def get_account_url(self, address):
+        return self.get_notary_url() + '/api/v1/account/' + address
+
+    def get_challenge_url(self, address):
+        return self.get_notary_url() + '/api/v1/challenge/' + address
+
+    def get_notarization_url(self, address, document_hash):
+        return self.get_notary_url() + '/api/v1/account/' + address + '/notarization/' + document_hash
+
+    def get_notarization_status_url(self, address, document_hash):
+        return self.get_notary_url() + '/api/v1/account/' + address + '/notarization/' + document_hash + '/status'
+
+
 class Notary(object):
-    def __init__(self, config_file):
+    def __init__(self, config_file, password):
         '''
            constructs needed objects
         Parameters
@@ -23,53 +60,30 @@ class Notary(object):
         '''
 
         self.config = NotaryConfiguration(config_file)
-        self.ssl_verify_mode = self.config.get_ssl_verify_mode()
         self.logger = log_handlers.get_logger(self.config)
-        self.logger.debug("-------------------------ENVIRONMENT--------------------------")
-        self.logger.debug("Am I Local: %s " % self.config.is_local_host())
+        self.ssl_verify_mode = self.config.get_ssl_verify_mode()
+        self.wallet = wallet.create_wallet(self.config.get_wallet_type(), password, self.logger)
+        self.secure_message = SecureMessage(self.wallet)
+        self.notary_server = NotaryServer(self.config)
+        self.address = str(self.wallet.get_bitcoin_address())
 
-        requests.packages.urllib3.disable_warnings()
-        if self.config.is_remote_testing():
-            self.notary_url = self.config.get_remote_server_url()
-        else:
-            self.notary_url = self.config.get_local_server_url()
-        self.wallet_obj = None
+    def get_payload(self, message):
+        str_message = json.dumps(message)
+        return self.secure_message.create_secure_payload(self.notary_server.get_public_key_hex(), str_message)
 
-        self.secure_message = None
-        response = requests.get(self.notary_url + '/api/v1/pubkey', verify=self.ssl_verify_mode)
-        data = response.json()
-        self.other_party_public_key_hex = data['public_key']
-        other_party_public_key_decoded = self.other_party_public_key_hex.decode("hex")
-        self.other_party_public_key = CPubKey(other_party_public_key_decoded)
-        self.other_party_address = P2PKHBitcoinAddress.from_pubkey(self.other_party_public_key)
-        self.govenr8r_token = 'UNAUTHENTICATED'
-        self.cookies = None
-
-    def check_wallet(self):
-        '''
-            It is a PRIVATE method to make sure wallet is there and loaded into the notary object already to do the things you want to do.
-        :return:
-        '''
-        if self.wallet_obj is None:
-            self.logger.exception("Calling API without loading wallet.")
-            raise ValueError('Client Wallet does not exist!')
-
-    def create_wallet(self, password):
-        '''
-           Basically this method creates a wallet file locally on your disk.
-        :param password:
-        :return:
-        '''
-        self.wallet_obj = wallet.create_wallet(self.config.get_wallet_type(), password, self.logger)
-
-    def load_wallet(self, password):
-        '''
-         loading wallet should be done before using any of the API calls. if you do , it will raise exception.
-        :param password:
-        :return:
-        '''
-        self.wallet_obj = wallet.load_wallet(self.config.get_wallet_type(), password, self.logger)
-        self.secure_message = SecureMessage(self.wallet_obj)
+    def authenticate(self):
+        challenge_url = self.notary_server.get_challenge_url(self.address)
+        response = requests.get(challenge_url, verify=self.ssl_verify_mode)
+        if response.status_code != 200:
+            return None
+        payload = json.loads(response.content)
+        if self.secure_message.verify_secure_payload(self.notary_server.get_address(), payload):
+            message = self.secure_message.get_message_from_secure_payload(payload)
+            payload = self.secure_message.create_secure_payload(self.notary_server.get_public_key_hex(), message)
+            response = requests.put(challenge_url, data=payload, verify=self.ssl_verify_mode)
+            if response.status_code != 200:
+                return None
+            return requests.utils.dict_from_cookiejar(response.cookies)
 
     def register_user(self, email):
         '''
@@ -83,175 +97,45 @@ class Notary(object):
               the http response status code.
         '''
         # prepare the input.
-        # make sure wallet object is there.
-        self.check_wallet()
 
-        address = str(self.wallet_obj.get_bitcoin_address())
-        message = {'public_key': self.wallet_obj.get_public_key_hex(), 'email': email}
-        str_message = json.dumps(message)
-        payload = self.secure_message.create_secure_payload(self.other_party_public_key_hex, str_message)
+        payload = self.get_payload({'public_key': self.wallet.get_public_key_hex(), 'email': email})
 
         # send to server
-        response = requests.put(self.notary_url + '/api/v1/account/' + address, data=payload,
+        response = requests.put(self.notary_server.get_account_url(self.address), data=payload,
                                 verify=self.ssl_verify_mode)
 
-        # process the response
-        if response.status_code != 200:
-            return None
-        print response.content
-        payload = response.content
-        print payload
         return response.status_code
 
-    def rotate_the_cookie(self, response):
-        '''
-           utility to rotate the cookie.
-           It is a PRIVATE method. don't use it as a API call.
-        Parameters
-        ----------
-        response
-
-        Returns
-        -------
-
-        '''
-        if response.cookies is None:
-            self.cookies = None
-            self.govenr8r_token = 'UNAUTHENTICATED'
-            return
-
-        self.cookies = requests.utils.dict_from_cookiejar(response.cookies)
-        if self.cookies is not None:
-            self.govenr8r_token = 'UNAUTHENTICATED'
-            return
-
-        if 'govern8r_token' in self.cookies:
-            self.govenr8r_token = self.cookies['govern8r_token']
-        else:
-            self.govenr8r_token = 'UNAUTHENTICATED'
-
-    def login(self):
-        '''
-           the login procedure. I don't takes any parameters. it assumes the wallet was already
-           created and  opened during the Notary object construction.
-           The login procedure uses the private key to sign the challenge sent by the server.
-
-        Returns
-        -------
-             basically true or false.
-
-        '''
-        # make sure wallet object is there.
-        self.check_wallet()
-        # call the server to get the challenge URL.
-        self.govenr8r_token = 'UNAUTHENTICATED'
-        address = str(self.wallet_obj.get_bitcoin_address())
-        response = requests.get(self.notary_url + '/api/v1/challenge/' + address, verify=self.ssl_verify_mode)
-
-        # process the response
-        if response.status_code != 200:
-            return False
-        payload = json.loads(response.content)
-        if self.secure_message.verify_secure_payload(self.other_party_address, payload):
-            message = self.secure_message.get_message_from_secure_payload(payload)
-            # create another payload with the signed challenge message.
-            payload = self.secure_message.create_secure_payload(self.other_party_public_key_hex, message)
-
-            # call the server with secure payload
-            response = requests.put(self.notary_url + '/api/v1/challenge/' + address, data=payload,
-                                    verify=self.ssl_verify_mode)
-
-            # process the response.
-            if response.status_code != 200:
-                return False
-            self.rotate_the_cookie(response)
-            return True
-        else:
-            self.govenr8r_token = 'UNAUTHENTICATED'
-            return False
-
-    def logout(self):
-        '''
-         basically it clears the cookie stored locally in memory.
-        Returns
-        -------
-
-        '''
-
-        self.govenr8r_token = 'UNAUTHENTICATED'
-        self.cookies = None
-
-    def confirm_registration(self, confirmation_url):
-        '''
-           Confirmation of the account is generally done out of band using email,etc.
-            This code basically takes the url and call the server url as it is to confirm the account.
-        Parameters
-        ----------
-        confirmation_url
-
-        Returns
-        -------
-
-        '''
-        # make sure wallet object is there.
-        self.check_wallet()
-        response = requests.get(confirmation_url, verify=self.ssl_verify_mode)
-        return response.status_code
-
-    def authenticated(self):
-        '''
-          basically checks for the token and if it is there it assumes the use login is done.
-        Returns
-        -------
-             True or False.
-        '''
-        return self.govenr8r_token != 'UNAUTHENTICATED'
-
-    def notarize_file(self, path_to_file, metadata_file):
+    def notarize_file(self, path_to_file, metadata):
         '''
         the main method to notarize a file.
         Parameters
         ----------
         path_to_file   : the fp to the file. ( Not file name). Need to support file name.
-        metadata_file  : the fp to the file. ( Not file name). Need to support file name.
+        metadata  : a JSON object containing metadata
 
         Returns
         -------
            returns the transaction hash and document hash.
 
         '''
-        # make sure wallet object is there.
-        self.check_wallet()
-        address = str(self.wallet_obj.get_bitcoin_address())
-        meta_data = json.loads(metadata_file.read())
 
         # hash the file and generate the document hash
         document_hash = hashfile.hash_file_fp(path_to_file)
-        meta_data['document_hash'] = document_hash
-        print json.dumps(meta_data)
         # create a secure payload
-        notarization_payload = self.secure_message.create_secure_payload(self.other_party_public_key_hex,
-                                                                         json.dumps(meta_data))
+        notarization_payload = self.get_payload(metadata)
+        # Have to authenticate
+        cookies = self.authenticate()
+        if cookies is not None:
+            response = requests.put(self.notary_server.get_notarization_url(self.address, document_hash),
+                                cookies=cookies, data=notarization_payload, verify=self.ssl_verify_mode)
+            if response.status_code == 200:
+                payload = json.loads(response.content)
+                if self.secure_message.verify_secure_payload(self.notary_server.get_address(), payload):
+                    message = self.secure_message.get_message_from_secure_payload(payload)
+                    return json.loads(message)
 
-        # make the rest call.
-        response = requests.put(self.notary_url + '/api/v1/account/' + address + '/notarization/' + document_hash,
-                                cookies=self.cookies, data=notarization_payload, verify=self.ssl_verify_mode)
-
-        # process the response
-        if response.status_code != 200:
-            return None
-        # store the rotated cookie.
-        self.rotate_the_cookie(response)
-
-        # process the returned payload
-        payload = json.loads(response.content)
-        print "payload"
-        print payload
-        if self.secure_message.verify_secure_payload(self.other_party_address, payload):
-            message = self.secure_message.get_message_from_secure_payload(payload)
-            print message
-            message = json.loads(message)
-            return message
+        return None
 
     def upload_file(self, path_to_file):
         '''
@@ -265,44 +149,35 @@ class Notary(object):
          the http status from the server
 
         '''
-        # make sure wallet object is there.
-        self.check_wallet()
-        address = str(self.wallet_obj.get_bitcoin_address())
-        files = {'files': path_to_file}
-        print repr(path_to_file.name)
-        print repr(self.notary_url + '/api/v1/upload/' + address + '/name/' + path_to_file.name)
-
-        # call the server
-        response = requests.post(self.notary_url + '/api/v1/upload/' + address + '/name/' + path_to_file.name,
-                                 cookies=self.cookies, files=files, verify=self.ssl_verify_mode)
-
-        self.rotate_the_cookie(response)
-        # process the response
-        if response.status_code != 200:
-            return None
-        # cookies = requests.utils.dict_from_cookiejar(response.cookies)
-        # self.govenr8r_token = cookies['govern8r_token']
-        print response.status_code
-        return response.status_code
+        document_hash = hashfile.hash_file(path_to_file)
+        cookies = self.authenticate()
+        if cookies is not None:
+            check_notarized = requests.get(self.notary_server.get_notarization_status_url(self.address, document_hash), cookies=cookies, verify=False)
+            if check_notarized is not None:
+                if check_notarized.status_code == 404:
+                    return None
+                elif check_notarized.status_code == 200:
+                    try:
+                        cookies = requests.utils.dict_from_cookiejar(check_notarized.cookies)
+                        files = {'document_content': open(path_to_file, 'rb')}
+                        upload_response = requests.put(self.notary_server.get_notarization_url(self.address, document_hash), cookies=cookies, files=files, verify=False)
+                        return upload_response.status_code
+                    except requests.ConnectionError as e:
+                        print (e.message)
+        return None
 
     def download_file(self, document_hash, storing_file_name):
-        self.check_wallet()
-        address = str(self.wallet_obj.get_bitcoin_address())
-        response = requests.get(
-            self.notary_url + '/api/v1/account/' + address + '/document/' + document_hash + '/status',
-            cookies=self.cookies, verify=False)
-        self.rotate_the_cookie(response)
-        if response.content is not None:
-            if response.status_code == 404:
-                print ("Document not found!")
-            elif response.status_code == 200:
-                try:
-                    files = {'document_content': open(storing_file_name, 'rb')}
-                    r = requests.put(self.notary_url + '/api/v1/account/' + address + '/document/' + document_hash,
-                                     cookies=self.cookies, files=files, verify=False)
-                    print r.status_code
-                except requests.ConnectionError as e:
-                    print(e.message)
+        cookies = self.authenticate()
+        if cookies is not None:
+            download_response = requests.get(self.notary_server.get_notarization_url(self.address, document_hash), cookies=cookies, allow_redirects=True, verify=False)
+            if download_response.status_code == 200:
+                # Need to add error handling
+                with open(storing_file_name, 'wb') as f:
+                    for chunk in download_response.iter_content(chunk_size=1024):
+                        if chunk:  # filter out keep-alive new chunks
+                            f.write(chunk)
+                return storing_file_name
+        return None
 
     def notary_status(self, document_hash):
         '''
@@ -315,20 +190,15 @@ class Notary(object):
         -------
              status value.
         '''
-        # make sure wallet object is there.
-        self.check_wallet()
-        address = str(self.wallet_obj.get_bitcoin_address())
-        response = requests.get(
-                self.notary_url + '/api/v1/account/' + address + '/notarization/' + document_hash + '/status',
-                cookies=self.cookies, verify=self.ssl_verify_mode)
+        cookies = self.authenticate()
+        if cookies is not None:
+            response = requests.get(self.notary_server.get_notarization_status_url(self.address, document_hash), cookies=cookies, verify=False)
+            if response.status_code == 404:
+                print ('No notarization!')
+            elif response.content is not None:
+                payload = json.loads(response.content)
+                if self.secure_message.verify_secure_payload(self.notary_server.get_address(), payload):
+                    message = self.secure_message.get_message_from_secure_payload(payload)
+                    return message
+        return None
 
-        self.rotate_the_cookie(response)
-        if response.status_code != 200:
-            print ('No notarization!')
-            return None
-        elif response.content is not None:
-            payload = json.loads(response.content)
-            if self.secure_message.verify_secure_payload(self.other_party_address, payload):
-                message = self.secure_message.get_message_from_secure_payload(payload)
-                print(message)
-                return message

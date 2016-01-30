@@ -76,12 +76,6 @@ def main_method(cmd_str=None):
             result = notary.register_user(args.email)
             print result
             return result
-    elif command == "confirm":
-        if not args.confirm_url:
-            print "confirm command needs url"
-        else:
-            print args.confirm_url
-            return Notary.confirm_registration(args.confirm_url)
     elif command == "notarize":
         if not args.metadata:
             print "notarize command needs metadata file"

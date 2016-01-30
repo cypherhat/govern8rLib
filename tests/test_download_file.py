@@ -49,7 +49,7 @@ govern8r_token = cookies['govern8r_token']
 print("Token from authentication: %s" % govern8r_token)
 print("Status: %s" % response.status_code)
 
-file_name = '/Users/raju/govern8r/IP/README.txt'
+file_name = '/Users/tssbi08/govern8r/IP/README.txt'
 document_hash = hashfile.hash_file(file_name)
 
 url = notary_url+'/api/v1/account/' + address + '/document/' + document_hash

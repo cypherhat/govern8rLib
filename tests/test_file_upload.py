@@ -51,10 +51,10 @@ print("Status: %s" % response.status_code)
 
 #Upload using PUT
 
-#file_name = "/Users/raju/Downloads/jdk-8u65-macosx-x64.dmg"
-#encrypted_file = "/Users/raju/Downloads/encrypt_jdk-8u65-macosx-x64.dmg"
-file_name = '/Users/raju/govern8r/IP/README.txt'
-encrypted_file = '/Users/raju/govern8r/IP/Encrypted_README.txt'
+#file_name = "/Users/tssbi08/Downloads/jdk-8u65-macosx-x64.dmg"
+#encrypted_file = "/Users/tssbi08/Downloads/encrypt_jdk-8u65-macosx-x64.dmg"
+file_name = '/Users/tssbi08/govern8r/IP/README.txt'
+# encrypted_file = '/Users/tssbi08/govern8r/IP/Encrypted_README.txt'
 
 #public_key = CPubKey(wallet.get_public_key_hex().decode("hex"))
 #file_stream_encrypt.encrypt_file(file_name,encrypted_file,public_key)
