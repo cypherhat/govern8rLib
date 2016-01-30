@@ -106,7 +106,6 @@ class Notary(object):
 
         return response.status_code
 
-
     def notarize_file(self, path_to_file, metadata):
         '''
         the main method to notarize a file.
