@@ -122,6 +122,7 @@ class Notary(object):
 
         # hash the file and generate the document hash
         document_hash = hashfile.hash_file_fp(path_to_file)
+        metadata['document_hash'] = document_hash
         # create a secure payload
         notarization_payload = self.get_payload(metadata)
         # Have to authenticate
