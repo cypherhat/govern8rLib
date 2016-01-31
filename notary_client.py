@@ -45,6 +45,9 @@ class NotaryServer(object):
     def get_notarization_status_url(self, address, document_hash):
         return self.get_notary_url() + '/api/v1/account/' + address + '/notarization/' + document_hash + '/status'
 
+    def get_upload_url(self, address, document_hash):
+        return self.notary_url + '/api/v1/account/' + address + '/document/' + document_hash
+
 
 class Notary(object):
     def __init__(self, config_file, password):
@@ -120,15 +123,19 @@ class Notary(object):
 
         '''
 
-        # hash the file and generate the document hash
-        document_hash = hashfile.hash_file_fp(path_to_file)
+        # hash the file and generate the document hashh
+        if type(path_to_file) is str:
+            document_hash = hashfile.hash_file(path_to_file)
+        else:
+            document_hash = hashfile.hash_file_fp(path_to_file)
+        metadata['document_hash'] = document_hash
         # create a secure payload
         notarization_payload = self.get_payload(metadata)
         # Have to authenticate
         cookies = self.authenticate()
         if cookies is not None:
             response = requests.put(self.notary_server.get_notarization_url(self.address, document_hash),
-                                cookies=cookies, data=notarization_payload, verify=self.ssl_verify_mode)
+                                    cookies=cookies, data=notarization_payload, verify=self.ssl_verify_mode)
             if response.status_code == 200:
                 payload = json.loads(response.content)
                 if self.secure_message.verify_secure_payload(self.notary_server.get_address(), payload):
@@ -149,10 +156,14 @@ class Notary(object):
          the http status from the server
 
         '''
-        document_hash = hashfile.hash_file(path_to_file)
+        if type(path_to_file) is str:
+            document_hash = hashfile.hash_file(path_to_file)
+        else:
+            document_hash = hashfile.hash_file_fp(path_to_file)
         cookies = self.authenticate()
         if cookies is not None:
-            check_notarized = requests.get(self.notary_server.get_notarization_status_url(self.address, document_hash), cookies=cookies, verify=False)
+            check_notarized = requests.get(self.notary_server.get_notarization_status_url(self.address, document_hash),
+                                           cookies=cookies, verify=False)
             if check_notarized is not None:
                 if check_notarized.status_code == 404:
                     return None
@@ -160,7 +171,9 @@ class Notary(object):
                     try:
                         cookies = requests.utils.dict_from_cookiejar(check_notarized.cookies)
                         files = {'document_content': open(path_to_file, 'rb')}
-                        upload_response = requests.put(self.notary_server.get_notarization_url(self.address, document_hash), cookies=cookies, files=files, verify=False)
+                        upload_response = requests.put(
+                            self.notary_server.get_upload_url(self.address, document_hash), cookies=cookies,
+                            files=files, verify=False)
                         return upload_response.status_code
                     except requests.ConnectionError as e:
                         print (e.message)
@@ -169,7 +182,8 @@ class Notary(object):
     def download_file(self, document_hash, storing_file_name):
         cookies = self.authenticate()
         if cookies is not None:
-            download_response = requests.get(self.notary_server.get_notarization_url(self.address, document_hash), cookies=cookies, allow_redirects=True, verify=False)
+            download_response = requests.get(self.notary_server.get_upload_url(self.address, document_hash),
+                                             cookies=cookies, allow_redirects=True, verify=False)
             if download_response.status_code == 200:
                 # Need to add error handling
                 with open(storing_file_name, 'wb') as f:
@@ -192,7 +206,8 @@ class Notary(object):
         '''
         cookies = self.authenticate()
         if cookies is not None:
-            response = requests.get(self.notary_server.get_notarization_status_url(self.address, document_hash), cookies=cookies, verify=False)
+            response = requests.get(self.notary_server.get_notarization_status_url(self.address, document_hash),
+                                    cookies=cookies, verify=False)
             if response.status_code == 404:
                 print ('No notarization!')
             elif response.content is not None:
@@ -201,4 +216,3 @@ class Notary(object):
                     message = self.secure_message.get_message_from_secure_payload(payload)
                     return message
         return None
-
