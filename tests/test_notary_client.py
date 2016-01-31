@@ -38,11 +38,11 @@ print notary_obj.notarize_file(test_data.notary_file_name,test_data.getMetaData(
 print "notarize again to see behaviour"
 print notary_obj.notarize_file(test_data.notary_file_name,test_data.getMetaData())
 print "upload file"
-print notary_obj.upload_file(test_data.notary_file_name)
+print notary_obj.upload_file(test_data.notary_file_name, True)
 print "notary_status"
 print notary_obj.notary_status(test_data.document_hash)
 print "download file"
-print notary_obj.download_file(test_data.document_hash,test_data.storing_file_name)
+print notary_obj.download_file(test_data.document_hash,test_data.storing_file_name, True)
 
 
 

@@ -69,7 +69,7 @@ def decrypt(in_file, out_file, private_key, key_length=32):
 
 
 
-def test_encryption() :
+def test_encryption():
     zipfilename = "/Users/raju/Downloads/jdk-8u65-macosx-x64.dmg"
     newzipfilename = "/Users/raju/Downloads/newjdk-8u65-macosx-x64.dmg"
     outfilename = "/Users/raju/Downloads/encrypt-8u65-macosx-x64.dmg"
