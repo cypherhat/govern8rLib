@@ -8,6 +8,7 @@ from message import SecureMessage
 import hashfile
 import configuration
 import log_handlers
+import test_data
 
 config = configuration.NotaryConfiguration('./notaryconfig.ini')
 if config.is_remote_testing():
@@ -63,7 +64,7 @@ metadata = {
 }
 
 
-document_hash = hashfile.hash_file('/Users/tssbi08/govern8r/IP/README.txt')
+document_hash = hashfile.hash_file(test_data.notary_file_name)
 metadata['document_hash'] = document_hash
 
 response = requests.get(notary_url+'/api/v1/account/' + address + '/notarization/' + document_hash + '/status', cookies=cookies, verify=False)

@@ -7,6 +7,7 @@ from bitcoinlib.wallet import P2PKHBitcoinAddress
 from message import SecureMessage
 import hashfile
 import configuration
+import test_data
 
 config = configuration.NotaryConfiguration('./notaryconfig.ini')
 if config.is_remote_testing():
@@ -41,7 +42,7 @@ payload = secure_message.create_secure_payload(other_party_public_key_hex, messa
 response = requests.put(notary_url+'/api/v1/challenge/' + address, data=payload, verify=False)
 cookies = requests.utils.dict_from_cookiejar(response.cookies)
 
-document_hash = hashfile.hash_file('/Users/tssbi08/govern8r/IP/Wake_Up.m4a')
+document_hash = hashfile.hash_file(test_data.notary_file_name)
 
 response = requests.get(notary_url+'/api/v1/account/' + address + '/document/' + document_hash + '/status', cookies=cookies, verify=False)
 if response.content is not None:
