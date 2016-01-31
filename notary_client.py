@@ -109,6 +109,34 @@ class Notary(object):
 
         return response.status_code
 
+    def register_user_status(self):
+        '''
+           This method returns the registration status.
+        Parameters
+        ----------
+        email   : the email address of the user.
+
+        Returns
+        -------
+              the http response status code.
+        '''
+
+
+        # send to server
+        # Have to authenticate
+        cookies = self.authenticate()
+        if cookies is None:
+            return None
+        response = requests.get(self.notary_server.get_account_url(self.address),cookies=cookies,
+                                verify=self.ssl_verify_mode)
+        if response.status_code == 200:
+            payload = json.loads(response.content)
+            if self.secure_message.verify_secure_payload(self.notary_server.get_address(), payload):
+                message = self.secure_message.get_message_from_secure_payload(payload)
+                return json.loads(message)
+
+        return response.status_code
+
     def notarize_file(self, path_to_file, metadata):
         '''
         the main method to notarize a file.
@@ -172,8 +200,8 @@ class Notary(object):
                         cookies = requests.utils.dict_from_cookiejar(check_notarized.cookies)
                         files = {'document_content': open(path_to_file, 'rb')}
                         upload_response = requests.put(
-                            self.notary_server.get_upload_url(self.address, document_hash), cookies=cookies,
-                            files=files, verify=False)
+                                self.notary_server.get_upload_url(self.address, document_hash), cookies=cookies,
+                                files=files, verify=False)
                         return upload_response.status_code
                     except requests.ConnectionError as e:
                         print (e.message)

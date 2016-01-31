@@ -21,12 +21,16 @@ print client_wallet_obj.wallet_exists()
 #test register to server.
 print "registering wallet"
 print notary_obj.register_user(test_data.email_address)
+print "getting register status"
+print notary_obj.register_user_status()
 #test register to server agin.
 print "testing register again"
 print notary_obj.register_user(test_data.email_address)
-
+print "getting register status"
+print notary_obj.register_user_status()
 print (raw_input('Finish confirmation and click'))
-
+print "getting register status"
+print notary_obj.register_user_status()
 #test to notarize before confirmation/registeration
 print "notarizing file"
 print notary_obj.notarize_file(test_data.notary_file_name,test_data.getMetaData())
