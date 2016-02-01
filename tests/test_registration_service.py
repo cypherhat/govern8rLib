@@ -5,6 +5,7 @@ from bitcoinlib.wallet import P2PKHBitcoinAddress
 from message import SecureMessage
 import configuration
 import log_handlers
+import test_data
 
 config = configuration.NotaryConfiguration('./notaryconfig.ini')
 if config.is_remote_testing():
@@ -35,7 +36,7 @@ print("\nWallet Public Key Hex %s" % wallet.get_public_key_hex())
 print("\nWallet Public Key %s" % wallet.get_public_key())
 addrfromhex = P2PKHBitcoinAddress.from_pubkey(wallet.get_public_key_hex().decode("hex"))
 print("\nAddress From Hex %s" % addrfromhex)
-email = 'jeff_ploughman@troweprice.com'
+email = test_data.email_address
 
 registration_message = {'public_key': wallet.get_public_key_hex(), 'email': email}
 

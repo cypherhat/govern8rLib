@@ -7,6 +7,9 @@ from bitcoinlib.core.key import CPubKey
 from bitcoinlib.wallet import P2PKHBitcoinAddress
 from configuration import NotaryConfiguration
 import log_handlers
+import file_stream_encrypt
+from bitcoinlib.wallet import CBitcoinSecret
+import base58
 
 
 class NotaryServer(object):
@@ -44,6 +47,9 @@ class NotaryServer(object):
 
     def get_notarization_status_url(self, address, document_hash):
         return self.get_notary_url() + '/api/v1/account/' + address + '/notarization/' + document_hash + '/status'
+
+    def get_upload_url(self, address, document_hash):
+        return self.notary_url + '/api/v1/account/' + address + '/document/' + document_hash
 
 
 class Notary(object):
@@ -106,6 +112,34 @@ class Notary(object):
 
         return response.status_code
 
+    def register_user_status(self):
+        '''
+           This method returns the registration status.
+        Parameters
+        ----------
+        email   : the email address of the user.
+
+        Returns
+        -------
+              the http response status code.
+        '''
+
+
+        # send to server
+        # Have to authenticate
+        cookies = self.authenticate()
+        if cookies is None:
+            return None
+        response = requests.get(self.notary_server.get_account_url(self.address),cookies=cookies,
+                                verify=self.ssl_verify_mode)
+        if response.status_code == 200:
+            payload = json.loads(response.content)
+            if self.secure_message.verify_secure_payload(self.notary_server.get_address(), payload):
+                message = self.secure_message.get_message_from_secure_payload(payload)
+                return json.loads(message)
+
+        return response.status_code
+
     def notarize_file(self, path_to_file, metadata):
         '''
         the main method to notarize a file.
@@ -120,8 +154,11 @@ class Notary(object):
 
         '''
 
-        # hash the file and generate the document hash
-        document_hash = hashfile.hash_file_fp(path_to_file)
+        # hash the file and generate the document hashh
+        if type(path_to_file) is str:
+            document_hash = hashfile.hash_file(path_to_file)
+        else:
+            document_hash = hashfile.hash_file_fp(path_to_file)
         metadata['document_hash'] = document_hash
         # create a secure payload
         notarization_payload = self.get_payload(metadata)
@@ -129,7 +166,7 @@ class Notary(object):
         cookies = self.authenticate()
         if cookies is not None:
             response = requests.put(self.notary_server.get_notarization_url(self.address, document_hash),
-                                cookies=cookies, data=notarization_payload, verify=self.ssl_verify_mode)
+                                    cookies=cookies, data=notarization_payload, verify=self.ssl_verify_mode)
             if response.status_code == 200:
                 payload = json.loads(response.content)
                 if self.secure_message.verify_secure_payload(self.notary_server.get_address(), payload):
@@ -138,7 +175,7 @@ class Notary(object):
 
         return None
 
-    def upload_file(self, path_to_file):
+    def upload_file(self, path_to_file, encrypted=False):
         '''
         uploads a file to server
         Parameters
@@ -150,33 +187,64 @@ class Notary(object):
          the http status from the server
 
         '''
-        document_hash = hashfile.hash_file(path_to_file)
+        if encrypted:
+            reg_status = self.register_user_status()
+            private_key_hex = str(reg_status['file_encryption_key'])
+            private_key_wif = base58.base58_check_encode(0x80, private_key_hex.decode("hex"))
+            private_key = CBitcoinSecret(private_key_wif)
+            public_key = private_key.pub
+
+        if type(path_to_file) is str:
+            document_hash = hashfile.hash_file(path_to_file)
+        else:
+            document_hash = hashfile.hash_file_fp(path_to_file)
+
         cookies = self.authenticate()
         if cookies is not None:
-            check_notarized = requests.get(self.notary_server.get_notarization_status_url(self.address, document_hash), cookies=cookies, verify=False)
+            check_notarized = requests.get(self.notary_server.get_notarization_status_url(self.address, document_hash),
+                                           cookies=cookies, verify=False)
             if check_notarized is not None:
                 if check_notarized.status_code == 404:
                     return None
                 elif check_notarized.status_code == 200:
                     try:
                         cookies = requests.utils.dict_from_cookiejar(check_notarized.cookies)
-                        files = {'document_content': open(path_to_file, 'rb')}
-                        upload_response = requests.put(self.notary_server.get_notarization_url(self.address, document_hash), cookies=cookies, files=files, verify=False)
+                        if encrypted:
+                            file_stream_encrypt.encrypt_file(path_to_file,path_to_file+".encrypted", public_key)
+                            files = {'document_content': open(path_to_file+".encrypted", 'rb')}
+                        else:
+                            files = {'document_content': open(path_to_file, 'rb')}
+                        upload_response = requests.put(
+                                self.notary_server.get_upload_url(self.address, document_hash), cookies=cookies,
+                                files=files, verify=False)
                         return upload_response.status_code
                     except requests.ConnectionError as e:
                         print (e.message)
         return None
 
-    def download_file(self, document_hash, storing_file_name):
+    def download_file(self, document_hash, storing_file_name, encrypted=False):
+        if encrypted:
+            reg_status = self.register_user_status()
+            private_key_hex = str(reg_status['file_encryption_key'])
+            private_key_wif = base58.base58_check_encode(0x80, private_key_hex.decode("hex"))
+            private_key = CBitcoinSecret(private_key_wif)
+            public_key = private_key.pub
+
         cookies = self.authenticate()
         if cookies is not None:
-            download_response = requests.get(self.notary_server.get_notarization_url(self.address, document_hash), cookies=cookies, allow_redirects=True, verify=False)
+            download_response = requests.get(self.notary_server.get_upload_url(self.address, document_hash),
+                                             cookies=cookies, allow_redirects=True, verify=False)
             if download_response.status_code == 200:
                 # Need to add error handling
-                with open(storing_file_name, 'wb') as f:
+                ultimate_file_name = str(storing_file_name)
+                if encrypted:
+                    ultimate_file_name = storing_file_name+".download_encrypted"
+                with open(ultimate_file_name, 'wb') as f:
                     for chunk in download_response.iter_content(chunk_size=1024):
                         if chunk:  # filter out keep-alive new chunks
                             f.write(chunk)
+                if encrypted:
+                    file_stream_encrypt.decrypt_file(storing_file_name+".download_encrypted",  storing_file_name, private_key_wif)
                 return storing_file_name
         return None
 
@@ -193,7 +261,8 @@ class Notary(object):
         '''
         cookies = self.authenticate()
         if cookies is not None:
-            response = requests.get(self.notary_server.get_notarization_status_url(self.address, document_hash), cookies=cookies, verify=False)
+            response = requests.get(self.notary_server.get_notarization_status_url(self.address, document_hash),
+                                    cookies=cookies, verify=False)
             if response.status_code == 404:
                 print ('No notarization!')
             elif response.content is not None:
@@ -202,4 +271,3 @@ class Notary(object):
                     message = self.secure_message.get_message_from_secure_payload(payload)
                     return message
         return None
-

@@ -8,6 +8,7 @@ from bitcoinlib.wallet import P2PKHBitcoinAddress
 from message import SecureMessage
 import configuration
 import log_handlers
+import test_data
 
 config = configuration.NotaryConfiguration('./notaryconfig.ini')
 if config.is_remote_testing():
@@ -53,7 +54,7 @@ print("Status: %s" % response.status_code)
 
 #file_name = "/Users/tssbi08/Downloads/jdk-8u65-macosx-x64.dmg"
 #encrypted_file = "/Users/tssbi08/Downloads/encrypt_jdk-8u65-macosx-x64.dmg"
-file_name = '/Users/tssbi08/govern8r/IP/README.txt'
+file_name = test_data.notary_file_name
 # encrypted_file = '/Users/tssbi08/govern8r/IP/Encrypted_README.txt'
 
 #public_key = CPubKey(wallet.get_public_key_hex().decode("hex"))
