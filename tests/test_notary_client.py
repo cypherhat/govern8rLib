@@ -6,12 +6,15 @@ import test_data
 # create a wallet
 notary_obj = Notary(test_data.config_file_name, "test123")
 
+#try to authenticate without anything.
+print "try to authenticate without anything"
+print notary_obj.authenticate()
+
 # load wallet with wrong password
 try:
     notary_obj = Notary(test_data.config_file_name, "tessfsdft123")
 except simplecrypt.DecryptionException as e:
     print e.message
-
 # test wallet exists are not.
 client_wallet_obj = ClientWallet("somepassword")
 print "wallet exists"
@@ -21,6 +24,8 @@ print client_wallet_obj.wallet_exists()
 #test register to server.
 print "registering wallet"
 print notary_obj.register_user(test_data.email_address)
+print "try authentication without confirmation"
+print notary_obj.authenticate()
 print "getting register status"
 print notary_obj.register_user_status()
 #test register to server agin.
