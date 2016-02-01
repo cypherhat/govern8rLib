@@ -32,22 +32,27 @@ address = str(wallet.get_bitcoin_address())
 ## Test GET challenge
 
 response = requests.get(notary_url+'/api/v1/challenge/' + address, verify=False)
-payload = json.loads(response.content)
-if secure_message.verify_secure_payload(other_party_address, payload):
-    message = secure_message.get_message_from_secure_payload(payload)
-    print(message)
-
-payload = secure_message.create_secure_payload(other_party_public_key_hex, message)
-response = requests.put(notary_url+'/api/v1/challenge/' + address, data=payload, verify=False)
-cookies = requests.utils.dict_from_cookiejar(response.cookies)
-
-response = requests.get(notary_url+'/api/v1/account/' + address, cookies=cookies, verify=False)
-if response.status_code == 404:
-    print ('No account!')
-elif response.content is not None:
-    str_content = response.content
-    payload = json.loads(str_content)
+if response.status_code == 200:
+    payload = json.loads(response.content)
     if secure_message.verify_secure_payload(other_party_address, payload):
         message = secure_message.get_message_from_secure_payload(payload)
         print(message)
 
+    payload = secure_message.create_secure_payload(other_party_public_key_hex, message)
+    response = requests.put(notary_url+'/api/v1/challenge/' + address, data=payload, verify=False)
+    if response.status_code == 200:
+        cookies = requests.utils.dict_from_cookiejar(response.cookies)
+
+        response = requests.get(notary_url+'/api/v1/account/' + address, cookies=cookies, verify=False)
+        if response.status_code == 404:
+            print ('No account!')
+        elif response.content is not None:
+            str_content = response.content
+            payload = json.loads(str_content)
+            if secure_message.verify_secure_payload(other_party_address, payload):
+                message = secure_message.get_message_from_secure_payload(payload)
+                print(message)
+    else:
+        print("Failed %s " % response.status_code)
+else:
+    print("Failed %s " % response.status_code)
