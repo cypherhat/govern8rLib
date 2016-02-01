@@ -81,6 +81,8 @@ class Notary(object):
         challenge_url = self.notary_server.get_challenge_url(self.address)
         response = requests.get(challenge_url, verify=self.ssl_verify_mode)
         if response.status_code != 200:
+            print "Authentication Error:"
+            print response.status_code
             return None
         payload = json.loads(response.content)
         if self.secure_message.verify_secure_payload(self.notary_server.get_address(), payload):
@@ -189,6 +191,10 @@ class Notary(object):
         '''
         if encrypted:
             reg_status = self.register_user_status()
+            if reg_status is None:
+                 print "Not able to get register_user_status"
+                 return None
+
             private_key_hex = str(reg_status['file_encryption_key'])
             private_key_wif = base58.base58_check_encode(0x80, private_key_hex.decode("hex"))
             private_key = CBitcoinSecret(private_key_wif)
@@ -225,6 +231,9 @@ class Notary(object):
     def download_file(self, document_hash, storing_file_name, encrypted=False):
         if encrypted:
             reg_status = self.register_user_status()
+            if reg_status is None:
+                print "register user status is None"
+                return
             private_key_hex = str(reg_status['file_encryption_key'])
             private_key_wif = base58.base58_check_encode(0x80, private_key_hex.decode("hex"))
             private_key = CBitcoinSecret(private_key_wif)
