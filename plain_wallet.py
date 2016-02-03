@@ -54,15 +54,15 @@ class PlainWallet(object):
         self.private_key = CBitcoinSecret(self.private_key_wif)
 
     def create_new_wallet(self):
-            private_key = os.urandom(32)
-            private_hex = private_key.encode("hex")
+        private_key = os.urandom(32)
+        private_hex = private_key.encode("hex")
 
-            config = configparser.ConfigParser()
-            config.add_section(self.section_name)
-            config.set(self.section_name, 'private_key',  private_hex)
+        config = configparser.ConfigParser()
+        config.add_section(self.section_name)
+        config.set(self.section_name, 'private_key',  private_hex)
 
-            with open(self.file_name, 'w') as configfile:
-                config.write(configfile)
+        with open(self.file_name, 'w') as configfile:
+            config.write(configfile)
 
     def read_private_key(self):
         if self.wallet_exists():
