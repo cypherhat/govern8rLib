@@ -8,22 +8,24 @@ from bitcoinlib.wallet import P2PKHBitcoinAddress
 from configuration import NotaryConfiguration
 import log_handlers
 import file_stream_encrypt
-from bitcoinlib.wallet import CBitcoinSecret
-import base58
-
-#Returning Errors.
 
 
+class Error(Exception):
+    """Base class for exceptions in this module."""
+    pass
 
 
-class NotaryError(object):
-    def __init__(self, error_code_input, error_msg_input=None):
-        self.error_code = error_code_input
-        self.error_msg = error_msg_input
+class NotaryException(Error):
+    """Exception raised for errors in the input.
 
-authentication_error = NotaryError(-1, "Authentication Error")
+    Attributes:
+        error_code -- code
+        error_message  -- explanation of the error
+    """
 
-
+    def __init__(self, error_code, error_message):
+        self.error_code = error_code
+        self.message = error_message
 
 
 class NotaryServer(object):
@@ -62,11 +64,11 @@ class NotaryServer(object):
     def get_notarization_status_url(self, address, document_hash):
         return self.get_notary_url() + '/api/v1/account/' + address + '/notarization/' + document_hash + '/status'
 
-    def get_upload_url(self, address, document_hash):
+    def get_document_url(self, address, document_hash):
         return self.notary_url + '/api/v1/account/' + address + '/document/' + document_hash
 
 
-class Notary(object):
+class NotaryClient(object):
     def __init__(self, config_file, password):
         '''
            constructs needed objects
@@ -87,6 +89,9 @@ class Notary(object):
         self.notary_server = NotaryServer(self.config)
         self.address = str(self.wallet.get_bitcoin_address())
 
+    def get_server_pubkey(self):
+        return self.notary_server.get_public_key_hex()
+
     def get_payload(self, message):
         str_message = json.dumps(message)
         return self.secure_message.create_secure_payload(self.notary_server.get_public_key_hex(), str_message)
@@ -95,17 +100,16 @@ class Notary(object):
         challenge_url = self.notary_server.get_challenge_url(self.address)
         response = requests.get(challenge_url, verify=self.ssl_verify_mode)
         if response.status_code != 200:
-            print "Authentication Error:"
-            print response.status_code
-            return None
+            raise NotaryException(response.status_code, "Error getting authentication challenge!")
         payload = json.loads(response.content)
         if self.secure_message.verify_secure_payload(self.notary_server.get_address(), payload):
             message = self.secure_message.get_message_from_secure_payload(payload)
             payload = self.secure_message.create_secure_payload(self.notary_server.get_public_key_hex(), message)
             response = requests.put(challenge_url, data=payload, verify=self.ssl_verify_mode)
             if response.status_code != 200:
-                return None
+                raise NotaryException(response.status_code, "Error authenticating!")
             return requests.utils.dict_from_cookiejar(response.cookies)
+        raise NotaryException(-1, "Error Verifying signature!")
 
     def register_user(self, email):
         '''
@@ -125,37 +129,44 @@ class Notary(object):
         # send to server
         response = requests.put(self.notary_server.get_account_url(self.address), data=payload,
                                 verify=self.ssl_verify_mode)
-
+        if response.status_code != 200:
+            raise NotaryException(response.status_code, "Error registering!")
         return response.status_code
 
-    def register_user_status(self):
+    def get_file_encryption_wallet(self):
+        try:
+            account = self.get_account()
+            file_encryption_wallet = wallet.create_wallet('MemoryWallet', account['file_encryption_key'])
+            return file_encryption_wallet
+        except NotaryException as e:
+            raise NotaryException(e.error_code, "Error getting file encryption key!")
+
+    def get_account(self):
         '''
-           This method returns the registration status.
-        Parameters
-        ----------
-        email   : the email address of the user.
+        This method tells us many things:
+
+        1. If a user has never been registered, then an exception with an error code of 404 will be raised
+        2. If a user has registered but hasn't confirmed, then an exception with an error code of 403 will be raised
+        3. If a user is registered and confirmed, account data will be returned. That data contains a file_encryption_key.
 
         Returns
         -------
-              the http response status code.
+              the account
         '''
+        try:
+            cookies = self.authenticate()
+        except NotaryException as e:
+            raise NotaryException(e.error_code, e.message)
 
-
-        # send to server
-        # Have to authenticate
-        cookies = self.authenticate()
-        if cookies is None:
-            return authentication_error
         response = requests.get(self.notary_server.get_account_url(self.address),cookies=cookies,
                                 verify=self.ssl_verify_mode)
-        if response.status_code == 200:
-            print response.content
+        registration_status = response.status_code
+        if registration_status == 200:
             payload = json.loads(response.content)
             if self.secure_message.verify_secure_payload(self.notary_server.get_address(), payload):
                 message = self.secure_message.get_message_from_secure_payload(payload)
                 return json.loads(message)
-
-        return response.status_code
+        raise NotaryException(registration_status, "Error Verifying signature!")
 
     def notarize_file(self, path_to_file, metadata):
         '''
@@ -172,107 +183,167 @@ class Notary(object):
         '''
 
         # hash the file and generate the document hashh
-        if type(path_to_file) is str:
-            document_hash = hashfile.hash_file(path_to_file)
-        else:
-            document_hash = hashfile.hash_file_fp(path_to_file)
+
+        try:
+            cookies = self.authenticate()
+        except NotaryException as e:
+            raise NotaryException(e.error_code, e.message)
+
+        document_hash = hashfile.hash_file(path_to_file)
+
         metadata['document_hash'] = document_hash
         # create a secure payload
         notarization_payload = self.get_payload(metadata)
         # Have to authenticate
-        cookies = self.authenticate()
-        if cookies is not None:
-            response = requests.put(self.notary_server.get_notarization_url(self.address, document_hash),
-                                    cookies=cookies, data=notarization_payload, verify=self.ssl_verify_mode)
-            if response.status_code == 200:
-                payload = json.loads(response.content)
-                if self.secure_message.verify_secure_payload(self.notary_server.get_address(), payload):
-                    message = self.secure_message.get_message_from_secure_payload(payload)
-                    return json.loads(message)
+        response = requests.put(self.notary_server.get_notarization_url(self.address, document_hash),
+                                cookies=cookies, data=notarization_payload, verify=self.ssl_verify_mode)
+        if response.status_code == 200:
+            payload = json.loads(response.content)
+            if self.secure_message.verify_secure_payload(self.notary_server.get_address(), payload):
+                message = self.secure_message.get_message_from_secure_payload(payload)
+                return json.loads(message)
+        else:
+            raise NotaryException(response.status_code, "Error notarizing!")
 
-        return authentication_error
-
-    def upload_file(self, path_to_file, encrypted=False):
+    def upload_file_encrypted(self, path_to_file):
         '''
-        uploads a file to server
+        uploads a file to server encrypting along the way
         Parameters
         ----------
-        path_to_file : give a file pointer,i.e. file pointer. Need change code support file full path name.
+        path_to_file :  file full path name.
 
         Returns
         -------
          the http status from the server
 
         '''
-        if encrypted:
-            reg_status = self.register_user_status()
-            if reg_status is None:
-                 print "Not able to get register_user_status"
-                 return None
+        try:
+            file_encryption_wallet = self.get_file_encryption_wallet()
+            cookies = self.authenticate()
+        except NotaryException as e:
+            raise NotaryException(e.error_code, e.message)
 
-            private_key_hex = str(reg_status['file_encryption_key'])
-            private_key_wif = base58.base58_check_encode(0x80, private_key_hex.decode("hex"))
-            private_key = CBitcoinSecret(private_key_wif)
-            public_key = private_key.pub
+        document_hash = hashfile.hash_file(path_to_file)
 
-        if type(path_to_file) is str:
-            document_hash = hashfile.hash_file(path_to_file)
-        else:
-            document_hash = hashfile.hash_file_fp(path_to_file)
+        try:
+            file_stream_encrypt.encrypt_file(path_to_file,path_to_file+".encrypted", file_encryption_wallet.get_public_key())
+            files = {'document_content': open(path_to_file+".encrypted", 'rb')}
+            upload_response = requests.put(
+                    self.notary_server.get_document_url(self.address, document_hash), cookies=cookies,
+                    files=files, verify=False)
+            return upload_response.status_code
+        except requests.ConnectionError as e:
+            raise NotaryException(upload_response.status_code, "Problem uploading file!")
 
-        cookies = self.authenticate()
-        if cookies is not None:
-            check_notarized = requests.get(self.notary_server.get_notarization_status_url(self.address, document_hash),
-                                           cookies=cookies, verify=False)
-            if check_notarized is not None:
-                if check_notarized.status_code == 404:
-                    return None
-                elif check_notarized.status_code == 200:
-                    try:
-                        cookies = requests.utils.dict_from_cookiejar(check_notarized.cookies)
-                        if encrypted:
-                            file_stream_encrypt.encrypt_file(path_to_file,path_to_file+".encrypted", public_key)
-                            files = {'document_content': open(path_to_file+".encrypted", 'rb')}
-                        else:
-                            files = {'document_content': open(path_to_file, 'rb')}
-                        upload_response = requests.put(
-                                self.notary_server.get_upload_url(self.address, document_hash), cookies=cookies,
-                                files=files, verify=False)
-                        return upload_response.status_code
-                    except requests.ConnectionError as e:
-                        print (e.message)
-        return authentication_error
+    def upload_file(self, path_to_file):
+        '''
+        uploads a file to server
+        Parameters
+        ----------
+        path_to_file : file full path name.
 
-    def download_file(self, document_hash, storing_file_name, encrypted=False):
-        if encrypted:
-            reg_status = self.register_user_status()
-            if reg_status is None:
-                print "register user status is None"
-                return
-            private_key_hex = str(reg_status['file_encryption_key'])
-            private_key_wif = base58.base58_check_encode(0x80, private_key_hex.decode("hex"))
-            private_key = CBitcoinSecret(private_key_wif)
-            public_key = private_key.pub
+        Returns
+        -------
+         the http status from the server
 
-        cookies = self.authenticate()
-        if cookies is not None:
-            download_response = requests.get(self.notary_server.get_upload_url(self.address, document_hash),
+        '''
+
+        try:
+            cookies = self.authenticate()
+        except NotaryException as e:
+            raise NotaryException(e.error_code, e.message)
+
+        document_hash = hashfile.hash_file(path_to_file)
+
+        try:
+            files = {'document_content': open(path_to_file, 'rb')}
+            upload_response = requests.put(
+                    self.notary_server.get_document_url(self.address, document_hash), cookies=cookies,
+                    files=files, verify=False)
+            if upload_response.status_code != 200:
+                raise NotaryException(upload_response.status_code, "Problem uploading file!")
+            return upload_response.status_code
+        except requests.ConnectionError as e:
+            raise NotaryException(-1, e.message)
+        except NotaryException as ne:
+            raise NotaryException(ne.error_code, ne.message)
+
+    def download_file(self, document_hash, storing_file_name):
+        '''
+        uploads a file to server
+        Parameters
+        ----------
+        document_hash : hash of file.
+        storing_file_name : file name to write to.
+
+        Returns
+        -------
+         storing_file_name
+
+        '''
+
+        try:
+            cookies = self.authenticate()
+        except NotaryException as e:
+            raise NotaryException(e.error_code, e.message)
+
+        try:
+            download_response = requests.get(self.notary_server.get_document_url(self.address, document_hash),
                                              cookies=cookies, allow_redirects=True, verify=False)
-            if download_response.status_code == 200:
+            if download_response.status_code != 200:
+                raise NotaryException(download_response.status_code, "Problem downloading file!")
                 # Need to add error handling
-                ultimate_file_name = str(storing_file_name)
-                if encrypted:
-                    ultimate_file_name = storing_file_name+".download_encrypted"
-                with open(ultimate_file_name, 'wb') as f:
-                    for chunk in download_response.iter_content(chunk_size=1024):
-                        if chunk:  # filter out keep-alive new chunks
-                            f.write(chunk)
-                if encrypted:
-                    file_stream_encrypt.decrypt_file(storing_file_name+".download_encrypted",  storing_file_name, private_key_wif)
-                return storing_file_name
-        return authentication_error
+            ultimate_file_name = str(storing_file_name)
+            with open(ultimate_file_name, 'wb') as f:
+                for chunk in download_response.iter_content(chunk_size=1024):
+                    if chunk:  # filter out keep-alive new chunks
+                        f.write(chunk)
+            return storing_file_name
+        except requests.ConnectionError as e:
+            raise NotaryException(-1, e.message)
+        except NotaryException as ne:
+            raise NotaryException(ne.error_code, ne.message)
 
-    def notary_status(self, document_hash):
+    def download_file_decrypted(self, document_hash, storing_file_name):
+        '''
+        uploads a file to server
+        Parameters
+        ----------
+        document_hash : hash of file.
+        storing_file_name : file name to write to.
+
+        Returns
+        -------
+         storing_file_name
+
+        '''
+
+        try:
+            file_encryption_wallet = self.get_file_encryption_wallet()
+            cookies = self.authenticate()
+        except NotaryException as e:
+            raise NotaryException(e.error_code, e.message)
+
+        try:
+            download_response = requests.get(self.notary_server.get_document_url(self.address, document_hash),
+                                             cookies=cookies, allow_redirects=True, verify=False)
+            if download_response.status_code != 200:
+                raise NotaryException(download_response.status_code, "Problem downloading file!")
+                # Need to add error handling
+            ultimate_file_name = str(storing_file_name)
+            with open(ultimate_file_name, 'wb') as f:
+                for chunk in download_response.iter_content(chunk_size=1024):
+                    if chunk:  # filter out keep-alive new chunks
+                        f.write(chunk)
+
+            file_stream_encrypt.decrypt_file(ultimate_file_name+".decrypted",  storing_file_name, file_encryption_wallet.get_private_key_wif())
+            return storing_file_name
+        except requests.ConnectionError as e:
+            raise NotaryException(-1, e.message)
+        except NotaryException as ne:
+            raise NotaryException(ne.error_code, ne.message)
+
+    def get_notarization_status(self, document_hash):
         '''
         This method returns the notary status
         Parameters
@@ -283,15 +354,17 @@ class Notary(object):
         -------
              status value.
         '''
-        cookies = self.authenticate()
-        if cookies is not None:
-            response = requests.get(self.notary_server.get_notarization_status_url(self.address, document_hash),
-                                    cookies=cookies, verify=False)
-            if response.status_code == 404:
-                print ('No notarization!')
-            elif response.content is not None:
-                payload = json.loads(response.content)
-                if self.secure_message.verify_secure_payload(self.notary_server.get_address(), payload):
-                    message = self.secure_message.get_message_from_secure_payload(payload)
-                    return message
-        return authentication_error
+        try:
+            cookies = self.authenticate()
+        except NotaryException as e:
+            raise NotaryException(e.error_code, e.message)
+
+        response = requests.get(self.notary_server.get_notarization_status_url(self.address, document_hash),
+                                cookies=cookies, verify=False)
+        if response.status_code != 200 or response.content is None:
+            raise NotaryException(response.status_code, "Error retrieving notarization status")
+        else:
+            payload = json.loads(response.content)
+            if self.secure_message.verify_secure_payload(self.notary_server.get_address(), payload):
+                message = self.secure_message.get_message_from_secure_payload(payload)
+                return json.loads(message)

@@ -12,15 +12,6 @@ def hash_file(path_to_file):
             sha.update(block)
         return sha.hexdigest()
 
-def hash_file_fp(fp):
-    sha = hashlib.sha256()
-    while True:
-        block = fp.read(2**10)  # Magic number: one-megabyte blocks.
-        if not block:
-             break
-        sha.update(block)
-        return sha.hexdigest()
-
 
 def main():
     hash_digest = hash_file("bootstrap.ini")
