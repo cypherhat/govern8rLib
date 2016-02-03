@@ -12,7 +12,7 @@ def create_wallet(wallet_type, key, logger):
     elif wallet_type == 'ClientWallet':
         wallet = ClientWallet(key)
     elif wallet_type == 'MemoryWallet':
-        wallet = MemoryWallet(key)
+        wallet = MemoryWallet(key)  # Used for file encryption
     else:
         wallet = PlainWallet()
     wallet.instance()
