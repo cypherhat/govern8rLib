@@ -11,6 +11,20 @@ import file_stream_encrypt
 from bitcoinlib.wallet import CBitcoinSecret
 import base58
 
+#Returning Errors.
+
+
+
+
+class NotaryError(object):
+    def __init__(self, error_code_input, error_msg_input=None):
+        self.error_code = error_code_input
+        self.error_msg = error_msg_input
+
+authentication_error = NotaryError(-1, "Authentication Error")
+
+
+
 
 class NotaryServer(object):
     def __init__(self, config):
@@ -131,10 +145,11 @@ class Notary(object):
         # Have to authenticate
         cookies = self.authenticate()
         if cookies is None:
-            return None
+            return authentication_error
         response = requests.get(self.notary_server.get_account_url(self.address),cookies=cookies,
                                 verify=self.ssl_verify_mode)
         if response.status_code == 200:
+            print response.content
             payload = json.loads(response.content)
             if self.secure_message.verify_secure_payload(self.notary_server.get_address(), payload):
                 message = self.secure_message.get_message_from_secure_payload(payload)
@@ -175,7 +190,7 @@ class Notary(object):
                     message = self.secure_message.get_message_from_secure_payload(payload)
                     return json.loads(message)
 
-        return None
+        return authentication_error
 
     def upload_file(self, path_to_file, encrypted=False):
         '''
@@ -226,7 +241,7 @@ class Notary(object):
                         return upload_response.status_code
                     except requests.ConnectionError as e:
                         print (e.message)
-        return None
+        return authentication_error
 
     def download_file(self, document_hash, storing_file_name, encrypted=False):
         if encrypted:
@@ -255,7 +270,7 @@ class Notary(object):
                 if encrypted:
                     file_stream_encrypt.decrypt_file(storing_file_name+".download_encrypted",  storing_file_name, private_key_wif)
                 return storing_file_name
-        return None
+        return authentication_error
 
     def notary_status(self, document_hash):
         '''
@@ -279,4 +294,4 @@ class Notary(object):
                 if self.secure_message.verify_secure_payload(self.notary_server.get_address(), payload):
                     message = self.secure_message.get_message_from_secure_payload(payload)
                     return message
-        return None
+        return authentication_error
