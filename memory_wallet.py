@@ -1,10 +1,5 @@
-
-import configparser
-import os
 from bitcoinlib.wallet import CBitcoinSecret
 import base58
-import fileencrypt
-import StringIO
 from plain_wallet import PlainWallet
 
 
