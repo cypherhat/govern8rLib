@@ -1,17 +1,19 @@
 import hashfile
-import os
+import requests
+
+
 def getMetaData():
     meta_data= {
-    'title': 'Stillwater Shame',
+    'title': 'My favorite monkey',
     'creator': 'Ploughman, J.J.',
-    'subject': 'Rock Music',
-    'description': 'A song about lying politicians',
+    'subject': 'TV show',
+    'description': 'A show about a monkey... that you like the best...',
     'publisher': 'J.J. Ploughman',
     'contributor': 'J.J. Ploughman',
     'date': '2001-08-03T03:00:00.000000',
-    'type': 'Music',
-    'format': 'm4a',
-    'source': 'Green Beans Album',
+    'type': 'Video',
+    'format': 'mpeg',
+    'source': 'CBS',
     'language': 'en',
     'relation': 'Unknown',
     'coverage': 'Unknown',
@@ -20,11 +22,11 @@ def getMetaData():
     return meta_data
 
 config_file_name="notaryconfig.ini"
-email_address="rajumail@gmail.com"
-notary_file_name='/Users/raju/govern8r/IP/README.txt'
-with open(notary_file_name, 'wb') as output:
-    output.write(os.urandom(64).encode("hex"))
+email_address="jeff_ploughman@troweprice.com"
+notary_file_name='/Users/tssbi08/govern8r/IP/README.txt'
+# with open(notary_file_name, 'wb') as output:
+#     output.write(os.urandom(64).encode("hex"))
 
 document_hash = hashfile.hash_file(notary_file_name)
-storing_file_name='/Users/raju/govern8r/IP/downloadedfile.txt'
+storing_file_name='/Users/tssbi08/govern8r/IP/downloadedfile.txt'
 
