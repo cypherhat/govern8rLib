@@ -1,20 +1,12 @@
 import argparse
-from notary_client import Notary
+from notary_client import NotaryClient
+import json
 
-notary = Notary("./notaryconfig.ini")
+notary = None
 
 
 def login_if_needed(notary, command):
-    needed = True
-    if command == 'register' or command == 'confirm' or command == 'login':
-        needed = False
-    if needed:
-        if not notary.authenticated():
-            notary.login()
-        if not notary.authenticated():
-            print "Not able to login. exiting ..."
-            return None
-    return 'Done'
+    pass
 
 
 def main_method(cmd_str=None):
@@ -30,45 +22,32 @@ def main_method(cmd_str=None):
     '''
     global notary
     parser = argparse.ArgumentParser()
-    parser.add_argument("command", choices=['createwallet', 'register', 'confirm', 'notarize', 'login', 'notarystatus',
-                                            'uploadfile','downloadfile'],
+    parser.add_argument("command", choices=[ 'register', 'confirm', 'notarize', 'login', 'notarystatus',
+                                            'uploadfile', 'downloadfile'],
                         help="Name of the command.")
     parser.add_argument("-password", type=str, help="the password used to access the wallet.")
     parser.add_argument("-email", type=str, help="the email address of the registered user.")
     parser.add_argument("-file", type=str, help="Fully qualified name of the file.")
     parser.add_argument("-metadata", type=str, help="File containing metadata of the file to notarize.")
     parser.add_argument("-confirm_url", type=str, help="Confirmation URL to confirm an account.")
-    parser.add_argument("-transaction_id", type=str, help="Transaction ID of a notary")
-    parser.add_argument("-file_hash", type=str, help="The hash  value of the file")
+    parser.add_argument("-document_hash", type=str, help="Document hash  of a document")
 
     if cmd_str is None:
         args = parser.parse_args()
     else:
         args = parser.parse_args(cmd_str)
+    if not args.password:
+        print("Password is required!")
+        return
 
-    if notary is not None:
-        if not args.password:
-            print("Password is required!")
-            return
-        if args.command != "register":
-            notary.load_wallet(args.password)
+    if notary is None:
+        notary = NotaryClient("./notaryconfig.ini", args.password)
+
     command = args.command
 
     print "Running " + command + " command"
 
-    if login_if_needed(notary, command) is None:
-        return
-
-    if command == "createwallet":
-        if not args.password:
-            print "createwallet command needs password"
-        else:
-            print args.password
-            result = notary.create_wallet(args.password)
-            print result
-            return result
-
-    elif command == "register":
+    if command == "register":
         if not args.email:
             print "register command needs email address"
         else:
@@ -86,7 +65,9 @@ def main_method(cmd_str=None):
             return
         # print args.file
         # print args.metadata
-        return notary.notarize_file(args.file, args.metadata)
+        metadata = json.loads(args.metadata)
+        return notary.notarize_file(args.file,
+                                    metadata)
     elif command == "uploadfile":
 
         if not args.file:
@@ -97,21 +78,24 @@ def main_method(cmd_str=None):
 
     elif command == "downloadfile":
 
-        if not args.file_hash:
-            print "download command needs file hash value"
+        if not args.document_hash:
+            print "download command needs document hash value"
+            return
+        if not args.file:
+            print "download command needs file"
             return
         # print args.file
-        return notary.download_file(args.file_hash)
+        return notary.download_file(args.document_hash,args.file)
 
     elif command == "login":
-        return notary.login()
+        return notary.authenticate()
     elif command == "notarystatus":
-        if not args.transaction_id:
-            print "confirm command needs transcation_id"
+        if not args.document_hash:
+            print "confirm command needs document_hash"
         else:
-            print args.transaction_id
-            status = notary.notary_status(args.transaction_id)
-            print "The Transcation status is"
+            print args.document_hash
+            status = notary.get_notarization_status(args.document_hash)
+            print "The Document status is"
             print status
             return status
     else:
