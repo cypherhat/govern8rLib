@@ -156,6 +156,12 @@ class NotaryConfiguration(object):
         else:
             raise ValueError('Value does not exist!')
 
+    def get_bucket_name(self):
+        if self.config.has_option('DEFAULT', 'bucket_name'):
+            return str(self.config.get('DEFAULT', 'bucket_name'))
+        else:
+            raise ValueError('Value does not exist!')
+
     def get_wallet_type(self):
         if self.config.has_option('DEFAULT', 'wallet_type'):
             return str(self.config.get('DEFAULT', 'wallet_type'))
