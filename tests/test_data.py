@@ -4,10 +4,10 @@ import requests
 
 def getMetaData():
     meta_data= {
-    'title': 'My favorite monkey',
+    'title': 'My favorite beaver',
     'creator': 'Ploughman, J.J.',
     'subject': 'TV show',
-    'description': 'A show about a monkey... that you like the best...',
+    'description': 'A show about a blake... that you hate the best...',
     'publisher': 'J.J. Ploughman',
     'contributor': 'J.J. Ploughman',
     'date': '2001-08-03T03:00:00.000000',

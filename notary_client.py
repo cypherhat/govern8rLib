@@ -55,6 +55,9 @@ class NotaryServer(object):
     def get_account_url(self, address):
         return self.get_notary_url() + '/api/v1/account/' + address
 
+    def get_notarizations_url(self, address):
+        return self.get_notary_url() + '/api/v1/account/' + address + '/notarizations'
+
     def get_challenge_url(self, address):
         return self.get_notary_url() + '/api/v1/challenge/' + address
 
@@ -368,3 +371,25 @@ class NotaryClient(object):
             if self.secure_message.verify_secure_payload(self.notary_server.get_address(), payload):
                 message = self.secure_message.get_message_from_secure_payload(payload)
                 return json.loads(message)
+
+    def get_notarizations(self):
+        '''
+
+        Returns
+        -------
+              the account
+        '''
+        try:
+            cookies = self.authenticate()
+        except NotaryException as e:
+            raise NotaryException(e.error_code, e.message)
+
+        response = requests.get(self.notary_server.get_notarizations_url(self.address), cookies=cookies,
+                                verify=self.ssl_verify_mode)
+        if response.status_code == 200:
+            payload = json.loads(response.content)
+            if self.secure_message.verify_secure_payload(self.notary_server.get_address(), payload):
+                message = self.secure_message.get_message_from_secure_payload(payload)
+                return json.loads(message)
+        else:
+            raise NotaryException(response.status_code, "Error getting notarizations!")
