@@ -139,7 +139,7 @@ class NotaryClient(object):
     def get_file_encryption_wallet(self):
         try:
             account = self.get_account()
-            file_encryption_wallet = wallet.create_wallet('MemoryWallet', account['file_encryption_key'])
+            file_encryption_wallet = wallet.create_wallet('MemoryWallet', account['file_encryption_key'],self.logger)
             return file_encryption_wallet
         except NotaryException as e:
             raise NotaryException(e.error_code, "Error getting file encryption key!")
@@ -334,7 +334,7 @@ class NotaryClient(object):
                 raise NotaryException(download_response.status_code, "Problem downloading file!")
                 # Need to add error handling
             ultimate_file_name = str(storing_file_name)
-            with open(ultimate_file_name, 'wb') as f:
+            with open(ultimate_file_name+".decrypted", 'wb') as f:
                 for chunk in download_response.iter_content(chunk_size=1024):
                     if chunk:  # filter out keep-alive new chunks
                         f.write(chunk)
